@@ -5,11 +5,13 @@
 #include <string.h>
 #include <unistd.h>
 #include <pthread.h>
+#include <sys/time.h>
 
 struct msg_buffer {
     long msg_type;
     int client_pid;
     char msg_text[256];
+    long long send_timestamp;
 };
 
 int msgid;
@@ -23,7 +25,13 @@ void* receive_messages(void* arg) {
     struct msg_buffer msg;
     while (running) {
         if (msgrcv(msgid, &msg, sizeof(msg) - sizeof(long), current_pid, 0) >= 0) {
+            struct timeval now;
+            gettimeofday(&now, NULL);
+            long long recv_time = (long long)now.tv_sec * 1000000LL + now.tv_usec;
+            long long latency_us = recv_time - msg.send_timestamp;
+
             printf("\n[Message Received]: %s\n", msg.msg_text);
+            printf("[Latency]: %.3f ms\n", latency_us / 1000.0);
             printf("เขียนข้อความ: ");
             fflush(stdout);
         }
@@ -33,8 +41,6 @@ void* receive_messages(void* arg) {
 
 // =========================
 // ส่งข้อความจากไฟล์
-// command: "say" หรือ "dm"
-// target: room name หรือ client PID
 // =========================
 void send_messages_from_file(const char* command, const char* target, const char* filename) {
     FILE* file = fopen(filename, "r");
@@ -42,26 +48,28 @@ void send_messages_from_file(const char* command, const char* target, const char
 
     char line[256];
     struct msg_buffer message;
-    message.msg_type = 1; // ส่งไป server
+    message.msg_type = 1;
     message.client_pid = current_pid;
 
     while (fgets(line, sizeof(line), file)) {
         size_t len = strlen(line);
         if (len > 0 && line[len-1] == '\n') line[len-1] = '\0';
 
-        if (strcmp(command, "say") == 0) {
+        struct timeval tv;
+        gettimeofday(&tv, NULL);
+        message.send_timestamp = (long long)tv.tv_sec * 1000000LL + tv.tv_usec;
+
+        if (strcmp(command, "say") == 0)
             snprintf(message.msg_text, sizeof(message.msg_text), "say %s %s", target, line);
-        } else if (strcmp(command, "dm") == 0) {
+        else if (strcmp(command, "dm") == 0)
             snprintf(message.msg_text, sizeof(message.msg_text), "dm %s %s", target, line);
-        }
 
-        if (msgsnd(msgid, &message, sizeof(message) - sizeof(long), 0) == -1) {
+        if (msgsnd(msgid, &message, sizeof(message) - sizeof(long), 0) == -1)
             perror("msgsnd failed");
-        } else {
+        else
             printf("[Sent]: %s\n", message.msg_text);
-        }
 
-        usleep(100000); // delay 0.1s
+        usleep(100000);
     }
 
     fclose(file);
@@ -75,7 +83,6 @@ int main() {
     struct msg_buffer message;
 
     current_pid = getpid();
-
     key = ftok("progfile", 65);
     msgid = msgget(key, 0666 | IPC_CREAT);
     if (msgid == -1) { perror("msgget"); exit(1); }
@@ -94,31 +101,27 @@ int main() {
         if (len > 0 && message.msg_text[len-1] == '\n') message.msg_text[len-1] = '\0';
         if (strcmp(message.msg_text, "quit") == 0) break;
 
-        // ถ้า user พิมพ์ "file command target filename"
         if (strncmp(message.msg_text, "file ", 5) == 0) {
             char cmd[10], target[50], filename[100];
             int n = sscanf(message.msg_text + 5, "%s %s %s", cmd, target, filename);
-            if (n == 3) {
-                send_messages_from_file(cmd, target, filename);
-            } else {
-                printf("ใช้: file <say|dm> <room|pid> <filename>\n");
-            }
+            if (n == 3) send_messages_from_file(cmd, target, filename);
+            else printf("ใช้: file <say|dm> <room|pid> <filename>\n");
             continue;
         }
 
-        // ส่งข้อความปกติแบบ interactive
         message.msg_type = 1;
         message.client_pid = current_pid;
-        if (msgsnd(msgid, &message, sizeof(message) - sizeof(long), 0) == -1) {
+        struct timeval tv;
+        gettimeofday(&tv, NULL);
+        message.send_timestamp = (long long)tv.tv_sec * 1000000LL + tv.tv_usec;
+
+        if (msgsnd(msgid, &message, sizeof(message) - sizeof(long), 0) == -1)
             perror("msgsnd failed");
-            exit(1);
-        }
     }
 
     running = 0;
     pthread_cancel(recv_tid);
     pthread_join(recv_tid, NULL);
     msgctl(msgid, IPC_RMID, NULL);
-
     return 0;
 }

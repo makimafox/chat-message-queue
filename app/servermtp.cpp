@@ -17,7 +17,7 @@ using namespace std;
 // =========================
 // CONFIG
 // =========================
-int CONFIG_BC_THREAD = 4; // จำนวน thread ใน pool
+int CONFIG_BC_THREAD = 20; // จำนวน thread ใน pool
 
 // =========================
 // Message Struct
@@ -26,6 +26,7 @@ struct msg_buffer {
     long msg_type;
     int client_pid;
     char msg_text[256];
+    long long send_timestamp; // เพิ่ม timestamp จาก client
 };
 
 int msgid; // global message queue id
@@ -89,13 +90,14 @@ public:
 
     Client(string n, int i) : name(n), id(i) {}
 
-    void boardcast(const string& text) {
+    void boardcast(const string& text, long long timestamp) {
         cout << "[DM][" << id << "]: " << text << endl;
 
         msg_buffer msg;
         msg.msg_type = id;
         strncpy(msg.msg_text, text.c_str(), sizeof(msg.msg_text) - 1);
         msg.msg_text[sizeof(msg.msg_text) - 1] = '\0';
+        msg.send_timestamp = timestamp;
 
         if (msgsnd(msgid, &msg, sizeof(msg) - sizeof(long), 0) == -1) {
             perror("msgsnd to client failed");
@@ -132,7 +134,7 @@ public:
         return false;
     }
 
-    void BoardCast(const string& text, ThreadPool& pool) {
+    void BoardCast(const string& text, ThreadPool& pool, long long timestamp) {
         cout << "[BROADCAST][" << room_name << "]: " << text << endl;
         lock_guard<mutex> lock(members_mtx);
 
@@ -142,6 +144,7 @@ public:
                 msg.msg_type = c->id;
                 strncpy(msg.msg_text, text.c_str(), sizeof(msg.msg_text) - 1);
                 msg.msg_text[sizeof(msg.msg_text) - 1] = '\0';
+                msg.send_timestamp = timestamp;
 
                 if (msgsnd(msgid, &msg, sizeof(msg) - sizeof(long), 0) == -1)
                     perror("msgsnd to client failed");
@@ -157,7 +160,7 @@ class Router {
 private:
     map<int, Client*> clients;
     map<string, Room*> rooms;
-    ThreadPool pool; // ใช้ทั้ง router และ broadcast
+    ThreadPool pool;
 
 public:
     Router(int _msgid) : pool(CONFIG_BC_THREAD) {
@@ -182,12 +185,8 @@ public:
         return newroom;
     }
 
-    // -----------------------
-    // Multithreaded start()
-    // -----------------------
     void start() {
         cout << "[Router] Started. Waiting for messages..." << endl;
-
         while (true) {
             msg_buffer message;
             if (msgrcv(msgid, &message, sizeof(message) - sizeof(long), 1, 0) < 0) {
@@ -195,7 +194,6 @@ public:
                 break;
             }
 
-            // ✅ โยนการประมวลผล message ให้ ThreadPool
             pool.enqueue([=]() {
                 handleMessage(message);
             });
@@ -218,10 +216,10 @@ public:
             room->join(client);
         } else if (cmdStr == "say" && n >= 3) {
             Room* room = CreateOrFindRoom(roomStr);
-            room->BoardCast(textStr, pool);
+            room->BoardCast(textStr, pool, message.send_timestamp);
         } else if (cmdStr == "dm" && n >= 3) {
             Client* target = CreateOrFindClient(stoi(roomStr));
-            target->boardcast(textStr);
+            target->boardcast(textStr, message.send_timestamp);
         } else if (cmdStr == "leave" && n >= 2) {
             Room* room = CreateOrFindRoom(roomStr);
             room->leave(client);
