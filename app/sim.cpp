@@ -118,7 +118,7 @@ int main() {
                 printf("[Client %d] Joined group: %s\n", i+1, group_name);
 
             // Say with file test.txt
-            send_messages_from_file("say", group_name, "test.txt");
+            send_messages_from_file("say", group_name, "test/test.txt");
 
             sleep(1); // allow time for messages to be received
             running = 0;
