@@ -17,7 +17,7 @@ using namespace std;
 // =========================
 // CONFIG
 // =========================
-int CONFIG_BC_THREAD = 20; // จำนวน thread ใน pool
+int CONFIG_BC_THREAD = 1; // จำนวน thread ใน pool
 
 // =========================
 // Message Struct
