@@ -78,50 +78,61 @@ void send_messages_from_file(const char* command, const char* target, const char
 // =========================
 // MAIN
 // =========================
-int main() {
-    key_t key;
-    struct msg_buffer message;
 
-    current_pid = getpid();
-    key = ftok("progfile", 65);
+int main() {
+    int num_clients;
+    char group_name[64];
+
+    printf("Enter number of clients: ");
+    scanf("%d", &num_clients);
+    getchar(); // consume newline
+    printf("Enter group name: ");
+    fgets(group_name, sizeof(group_name), stdin);
+    size_t len = strlen(group_name);
+    if (len > 0 && group_name[len-1] == '\n') group_name[len-1] = '\0';
+
+    key_t key = ftok("progfile", 65);
     msgid = msgget(key, 0666 | IPC_CREAT);
     if (msgid == -1) { perror("msgget"); exit(1); }
 
-    pthread_t recv_tid;
-    pthread_create(&recv_tid, NULL, receive_messages, NULL);
+    for (int i = 0; i < num_clients; ++i) {
+        pid_t pid = fork();
+        if (pid == 0) { // child process = client
+            current_pid = getpid();
+            pthread_t recv_tid;
+            pthread_create(&recv_tid, NULL, receive_messages, NULL);
 
-    printf("Client started. พิมพ์ 'quit' เพื่อออก\n");
-    printf("client id: %d\n", current_pid);
+            printf("Client %d started. PID: %d\n", i+1, current_pid);
 
-    while (1) {
-        printf("เขียนข้อความ: ");
-        if (fgets(message.msg_text, sizeof(message.msg_text), stdin) == NULL) break;
+            // Join group (room)
+            struct msg_buffer join_msg;
+            join_msg.msg_type = 1;
+            join_msg.client_pid = current_pid;
+            struct timeval tv;
+            gettimeofday(&tv, NULL);
+            join_msg.send_timestamp = (long long)tv.tv_sec * 1000000LL + tv.tv_usec;
+            snprintf(join_msg.msg_text, sizeof(join_msg.msg_text), "join %s", group_name);
+            if (msgsnd(msgid, &join_msg, sizeof(join_msg) - sizeof(long), 0) == -1)
+                perror("msgsnd failed (join)");
+            else
+                printf("[Client %d] Joined group: %s\n", i+1, group_name);
 
-        size_t len = strlen(message.msg_text);
-        if (len > 0 && message.msg_text[len-1] == '\n') message.msg_text[len-1] = '\0';
-        if (strcmp(message.msg_text, "quit") == 0) break;
+            // Say with file test.txt
+            send_messages_from_file("say", group_name, "test.txt");
 
-        if (strncmp(message.msg_text, "file ", 5) == 0) {
-            char cmd[10], target[50], filename[100];
-            int n = sscanf(message.msg_text + 5, "%s %s %s", cmd, target, filename);
-            if (n == 3) send_messages_from_file(cmd, target, filename);
-            else printf("ใช้: file <say|dm> <room|pid> <filename>\n");
-            continue;
+            sleep(1); // allow time for messages to be received
+            running = 0;
+            pthread_cancel(recv_tid);
+            pthread_join(recv_tid, NULL);
+            exit(0);
         }
-
-        message.msg_type = 1;
-        message.client_pid = current_pid;
-        struct timeval tv;
-        gettimeofday(&tv, NULL);
-        message.send_timestamp = (long long)tv.tv_sec * 1000000LL + tv.tv_usec;
-
-        if (msgsnd(msgid, &message, sizeof(message) - sizeof(long), 0) == -1)
-            perror("msgsnd failed");
     }
 
-    running = 0;
-    pthread_cancel(recv_tid);
-    pthread_join(recv_tid, NULL);
+    // Parent waits for all children
+    for (int i = 0; i < num_clients; ++i) {
+        wait(NULL);
+    }
+
     msgctl(msgid, IPC_RMID, NULL);
     return 0;
 }
