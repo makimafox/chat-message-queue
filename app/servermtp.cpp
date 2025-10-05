@@ -17,7 +17,7 @@ using namespace std;
 // =========================
 // CONFIG
 // =========================
-int CONFIG_BC_THREAD = 1; // จำนวน thread ใน pool
+int CONFIG_BC_THREAD; // จำนวน thread ใน pool
 
 // =========================
 // Message Struct
@@ -249,6 +249,9 @@ int main() {
         perror("msgget failed");
         return 1;
     }
+
+    cout << "Enter number of threads in pool: ";
+    cin >> CONFIG_BC_THREAD;
 
     Router router(msgid);
     router.start();
