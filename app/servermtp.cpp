@@ -103,6 +103,11 @@ public:
             perror("msgsnd to client failed");
         }
     }
+
+    ~Client() {
+        // No dynamic memory to free, but provided for completeness
+        // cout << "Client destroyed: " << name << endl;
+    }
 };
 
 // =========================
@@ -150,6 +155,11 @@ public:
                     perror("msgsnd to client failed");
             });
         }
+    }
+
+    ~Room() {
+        // No dynamic memory to free, but provided for completeness
+        // cout << "Room destroyed: " << room_name << endl;
     }
 };
 
