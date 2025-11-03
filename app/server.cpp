@@ -425,9 +425,36 @@ public:
                 sendInfoToClient(clientID, "Left room " + roomStr + " successfully", message.send_timestamp);
         }
 
-        // ✅ Pulse (ใช้ตรวจสอบสถานะ client)
-        else if (cmdStr == "Pulse") {
-            cout << "[Info][" << client->name << "][Online]\n";
+        // ✅ online (ใช้ตรวจสอบสถานะ client)
+        else if (cmdStr == "online") {
+            // Build list of known/online clients and reply to requester
+            string list;
+            for (const auto &p : clients) {
+                if (!list.empty()) list += ", ";
+                list += to_string(p.first);
+            }
+            string info = "Online clients: [" + list + "]";
+            sendInfoToClient(clientID, info, message.send_timestamp);
+            cout << "[Info][" << client->name << "][Online] " << info << endl;
+
+            // Notify other clients that this client is online
+            for (const auto &p : clients) {
+                int otherID = p.first;
+                if (otherID == clientID) continue;
+                sendInfoToClient(otherID, "Client " + to_string(clientID) + " is online", message.send_timestamp);
+            }
+        }
+
+        else if (cmdStr == "help") {
+            string helpMsg =
+                "Available commands:\n"
+                "1. join <room_name> - Join a chat room\n"
+                "2. leave <room_name> - Leave a chat room\n"
+                "3. say <room_name> <message> - Send message to a room\n"
+                "4. dm <target_client_id> <message> - Direct message to a client\n"
+                "5. online - List online clients\n"
+                "6. help - Show this help message\n";
+            sendInfoToClient(clientID, helpMsg, message.send_timestamp);
         }
 
         // ✅ คำสั่งอื่น ๆ
