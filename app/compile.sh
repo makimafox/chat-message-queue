@@ -1,9 +1,8 @@
-gcc client.cpp -o client
 
-gcc server.cpp -o server
 
-gcc clientmt.cpp -o clientmt
+g++ client.cpp -o client
 
-gcc servermt.cpp -o servermt
 
-gcc servermtp.cpp -o servermtp
+g++ server.cpp -o server
+
+g++ clientsim.cpp -o clientsim

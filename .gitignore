@@ -1,7 +1,6 @@
-/app/server
-/app/servermt
-/app/servermtp
+/app/*
 
-/app/client
-/app/clientmt
-/app/sim
+!/app/*.cpp
+!/app/*.sh
+!/app/*.txt
+!/app/progfile

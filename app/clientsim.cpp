@@ -4,6 +4,7 @@
 #include <sys/msg.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/wait.h>
 #include <pthread.h>
 #include <sys/time.h>
 
@@ -133,6 +134,7 @@ int main() {
         wait(NULL);
     }
 
-    msgctl(msgid, IPC_RMID, NULL);
+    // Do NOT remove the message queue here. The server (router) owns the
+    // lifecycle of the message queue and will remove it when it shuts down.
     return 0;
 }

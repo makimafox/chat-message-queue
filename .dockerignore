@@ -5,9 +5,10 @@ Dockerfile
 build.sh
 exec.sh
 
-/app/server
-/app/servermt
-/app/servermtp
-/app/client
-/app/clientmt
-/app/sim
+
+/app/*
+!/app/test
+!/app/*.cpp
+!/app/*.sh
+!/app/*.txt
+!/app/progfile
