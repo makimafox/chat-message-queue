@@ -31,9 +31,8 @@ void* receive_messages(void* arg) {
             long long recv_time = (long long)now.tv_sec * 1000000LL + now.tv_usec;
             long long latency_us = recv_time - msg.send_timestamp;
 
-            printf("\n[Message Received]: %s\n", msg.msg_text);
+            printf("\n%s\n", msg.msg_text);
             printf("[Latency]: %.3f ms\n", latency_us / 1000.0);
-            printf("เขียนข้อความ: ");
             fflush(stdout);
         }
     }

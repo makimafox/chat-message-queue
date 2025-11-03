@@ -110,7 +110,7 @@ public:
 
     Client(string n, int i) : name(std::move(n)), id(i) {}
 
-    // **✅ การแก้ไข: รับ senderID เข้ามา**
+    // รับ senderID เข้ามา
     void boardcast(const string &text, long long timestamp, int senderID) {
         if (text.empty()) {
             cerr << "[Client][" << id << "] Empty message ignored.\n";
@@ -124,7 +124,7 @@ public:
         msg.msg_type = id;
         msg.client_pid = id;
         
-        // **✅ การสร้างข้อความ: [Recieved Message from <SenderID> to <TargetID>]: <Text>**
+        // การสร้างข้อความ: [Recieved Message from <SenderID> to <TargetID>]: <Text>
         const string dm_text = "[Recieved Message from " + to_string(senderID) + " to " + to_string(this->id) + "]: " + text;
         strncpy(msg.msg_text, dm_text.c_str(), sizeof(msg.msg_text) - 1);
         
@@ -176,17 +176,20 @@ public:
         return false;
     }
 
-    void BoardCast(const string &text, ThreadPool &pool, long long timestamp) {
+    // รับ senderID เข้ามา และปรับ Console Output
+    void BoardCast(const string &text, ThreadPool &pool, long long timestamp, int senderID) {
         if (text.empty()) {
             cerr << "[Room][" << room_name << "] Empty broadcast ignored.\n";
             return;
         }
 
-        cout << "[BROADCAST][" << room_name << "]: " << text << endl;
+        // NEW Server Console Output: แสดง SenderID และ Room Name
+        cout << "[BROADCAST][From:" << senderID << "][To:" << room_name << "]: " << text << endl; 
+
         lock_guard<mutex> lock(members_mtx);
         
-        // คำนำหน้าสำหรับ BoardCast (SAY)
-        const string broadcast_text = "[Recieved Message]: " + text;
+        // **✅ แก้ไข: คำนำหน้าสำหรับ BoardCast (SAY) ให้แสดง SenderID และ RoomName**
+        const string broadcast_text = "[Recieved Message from " + to_string(senderID) + " in room " + this->room_name + "]: " + text;
 
         for (auto c : members) {
             if (!c) continue;
@@ -378,7 +381,8 @@ public:
                 sendErrorToClient(clientID, "Room not found: " + roomStr, message.send_timestamp);
                 return;
             }
-            room->BoardCast(textStr, pool, message.send_timestamp);
+            // **✅ การแก้ไข: ส่ง clientID (Sender) ไปด้วย**
+            room->BoardCast(textStr, pool, message.send_timestamp, clientID);
         }
 
         // ✅ DM
@@ -390,7 +394,7 @@ public:
                 cout << "[Route DM][From:" << clientID << "][To:" << targetID << "]: " << textStr << endl;
                 
                 if (Client *target = CreateOrFindClient(targetID))
-                    // **✅ การแก้ไข: ส่ง clientID (Sender) ไปด้วย**
+                    // ส่ง clientID (Sender) ไปด้วย
                     target->boardcast(textStr, message.send_timestamp, clientID);
                 else
                     sendErrorToClient(clientID, "Target client not found", message.send_timestamp);
