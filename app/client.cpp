@@ -18,14 +18,9 @@ int msgid;
 int current_pid;
 volatile int running = 1;
 
-// =========================
-// Thread รับข้อความ (ลบ [Message Received]: ทั้งหมด)
-// =========================
-// ... (ส่วนโครงสร้างและตัวแปร global เดิม)
 
-// =========================
-// Thread รับข้อความ (แก้ไขการแสดงผล)
-// =========================
+// Thread รับข้อความ
+
 void* receive_messages(void* arg) {
     struct msg_buffer msg;
     while (running) {
@@ -36,22 +31,16 @@ void* receive_messages(void* arg) {
             long long recv_time = (long long)now.tv_sec * 1000000LL + now.tv_usec;
             long long latency_us = recv_time - msg.send_timestamp;
 
-            // 1. ใช้ \r เพื่อกลับไปที่ต้นบรรทัด
+            
             printf("\r"); 
             
-            // 2. **ลบบรรทัดเคลียร์ช่องว่างออก** เพื่อไม่ให้เกิดช่องว่างเยอะเกินไป
-            // printf("%-200s", ""); 
-
-            // 3. **ไม่ต้องกลับไปที่ต้นบรรทัดอีก** เพราะ \r แรกเพียงพอแล้ว
-            // printf("\r");
             
-            // 4. แสดงผลข้อความที่ได้รับ (msg.msg_text) ตามด้วย \n
             printf("%s\n", msg.msg_text);
             
-            // 5. แสดง Latency
+            // แสดง Latency
             printf("[Latency]: %.3f ms\n", latency_us / 1000.0);
             
-            // 6. แสดง prompt "เขียนข้อความ: " ขึ้นมาใหม่ทันที
+            // แสดง prompt "เขียนข้อความ: " ขึ้นมาใหม่ทันที
             printf("เขียนข้อความ: ");
             fflush(stdout); // บังคับให้แสดงผลทันที
         }
@@ -59,11 +48,8 @@ void* receive_messages(void* arg) {
     return NULL;
 }
 
-// ... (ส่วนที่เหลือของโค้ด main และ send_messages_from_file ยังคงเดิม)
 
-// =========================
 // ส่งข้อความจากไฟล์
-// =========================
 void send_messages_from_file(const char* command, const char* target, const char* filename) {
     FILE* file = fopen(filename, "r");
     if (!file) { perror("fopen"); return; }
@@ -97,9 +83,9 @@ void send_messages_from_file(const char* command, const char* target, const char
     fclose(file);
 }
 
-// =========================
-// MAIN
-// =========================
+
+
+// ฟังค์ชัน main
 int main() {
     key_t key;
     struct msg_buffer message;

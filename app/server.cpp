@@ -14,31 +14,25 @@
 #include <stdexcept>
 #include <ctime>
 #include <chrono>
-#include <algorithm> // สำหรับ std::find
+#include <algorithm>
 
 using namespace std;
 using namespace std::chrono;
 
-// =========================
-// CONFIG
-// =========================
-int CONFIG_BC_THREAD; // จำนวน thread ใน pool
 
-// =========================
-// Message Struct
-// =========================
+int CONFIG_BC_THREAD;
+
+
 struct msg_buffer {
     long msg_type;
     int client_pid;
     char msg_text[256];
-    long long send_timestamp; // microseconds since epoch
+    long long send_timestamp;
 };
 
-int msgid; // global message queue id
+int msgid;
 
-// =========================
-// ThreadPool Implementation
-// =========================
+// ThreadPool สำหรับจัดการ concurrent tasks
 class ThreadPool {
     vector<thread> workers;
     queue<function<void()>> tasks;
@@ -100,9 +94,7 @@ public:
     }
 };
 
-// =========================
-// Client Class
-// =========================
+// คลาส Client
 class Client {
 public:
     string name;
@@ -136,9 +128,7 @@ public:
     }
 };
 
-// =========================
-// Room Class
-// =========================
+// คลาส Room
 class Room {
 public:
     string room_name;
@@ -188,7 +178,7 @@ public:
 
         lock_guard<mutex> lock(members_mtx);
         
-        // **✅ แก้ไข: คำนำหน้าสำหรับ BoardCast (SAY) ให้แสดง SenderID และ RoomName**
+        // คำนำหน้าสำหรับ BoardCast (SAY) ให้แสดง SenderID และ RoomName**
         const string broadcast_text = "[Recieved Message from " + to_string(senderID) + " in room " + this->room_name + "]: " + text;
 
         for (auto c : members) {
@@ -208,16 +198,14 @@ public:
     }
 };
 
-// =========================
-// Router Class
-// =========================
+// คลาส Router
 class Router {
 private:
     map<int, Client *> clients;
     map<string, Room *> rooms;
     ThreadPool pool;
 
-    // ✅ ส่งข้อความ error กลับไปยัง client
+    // ส่งข้อความ error กลับไปยัง client
     void sendErrorToClient(int clientID, const string &err, long long timestamp = 0) const {
         if (clientID <= 0 || err.empty()) return;
 
@@ -233,7 +221,7 @@ private:
             cout << "[SendError][" << clientID << "]: " << err << endl;
     }
 
-    // ✅ ส่งข้อความ success (ไม่แสดง latency แล้ว)
+    // ส่งข้อความ success
     void sendInfoToClient(int clientID, const string &msg, long long clientTimestamp) const {
         if (clientID <= 0 || msg.empty()) return;
 
@@ -244,7 +232,7 @@ private:
         reply.msg_type = clientID;
         reply.client_pid = clientID;
 
-        // ส่งกลับแค่ข้อความ [INFO]
+    
         snprintf(reply.msg_text, sizeof(reply.msg_text), "[INFO] %s", msg.c_str());
 
         reply.send_timestamp = now_us;
@@ -347,7 +335,7 @@ public:
             return;
         }
 
-        // ✅ JOIN
+        // JOIN
         if (cmdStr == "join") {
             if (n < 2) {
                 sendErrorToClient(clientID, "Missing room name in join command", message.send_timestamp);
@@ -366,7 +354,7 @@ public:
             }
         }
 
-        // ✅ SAY
+        // SAY
         else if (cmdStr == "say") {
             if (n < 2) {
                 sendErrorToClient(clientID, "Missing room name in say command", message.send_timestamp);
@@ -381,11 +369,11 @@ public:
                 sendErrorToClient(clientID, "Room not found: " + roomStr, message.send_timestamp);
                 return;
             }
-            // **✅ การแก้ไข: ส่ง clientID (Sender) ไปด้วย**
+            // ส่ง clientID (Sender)
             room->BoardCast(textStr, pool, message.send_timestamp, clientID);
         }
 
-        // ✅ DM
+        // DM
         else if (cmdStr == "dm" && n >= 3) {
             try {
                 int targetID = stoi(roomStr); // targetID อยู่ในตำแหน่ง roomStr
@@ -403,7 +391,7 @@ public:
             }
         }
 
-        // ✅ LEAVE
+        // LEAVE
         else if (cmdStr == "leave") {
             if (n < 2) {
                 sendErrorToClient(clientID, "Missing room name in leave command", message.send_timestamp);
@@ -425,9 +413,9 @@ public:
                 sendInfoToClient(clientID, "Left room " + roomStr + " successfully", message.send_timestamp);
         }
 
-        // ✅ online (ใช้ตรวจสอบสถานะ client)
+        // online (ใช้ตรวจสอบสถานะ client)
         else if (cmdStr == "online") {
-            // Build list of known/online clients and reply to requester
+            // ส่ง clientID (Sender)
             string list;
             for (const auto &p : clients) {
                 if (!list.empty()) list += ", ";
@@ -437,7 +425,7 @@ public:
             sendInfoToClient(clientID, info, message.send_timestamp);
             cout << "[Info][" << client->name << "][Online] " << info << endl;
 
-            // Notify other clients that this client is online
+            // แจ้ง client อื่น ๆ ว่า client นี้ออนไลน์
             for (const auto &p : clients) {
                 int otherID = p.first;
                 if (otherID == clientID) continue;
@@ -457,7 +445,7 @@ public:
             sendInfoToClient(clientID, helpMsg, message.send_timestamp);
         }
 
-        // ✅ คำสั่งอื่น ๆ
+        // handle unknown command
         else {
             sendErrorToClient(clientID, "Unknown command: " + cmdStr, message.send_timestamp);
         }
@@ -473,9 +461,7 @@ public:
     }
 };
 
-// =========================
-// MAIN
-// =========================
+// ฟังก์ชัน main
 int main() {
     // กำหนดค่า key สำหรับ Message Queue
     key_t key = ftok("progfile", 65);

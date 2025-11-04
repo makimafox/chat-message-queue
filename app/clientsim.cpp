@@ -19,9 +19,8 @@ int msgid;
 int current_pid;
 volatile int running = 1;
 
-// =========================
+
 // Thread รับข้อความ
-// =========================
 void* receive_messages(void* arg) {
     struct msg_buffer msg;
     while (running) {
@@ -39,10 +38,10 @@ void* receive_messages(void* arg) {
     return NULL;
 }
 
-// =========================
+
 // ส่งข้อความจากไฟล์
-// =========================
 void send_messages_from_file(const char* command, const char* target, const char* filename) {
+    // เปิดไฟล์
     FILE* file = fopen(filename, "r");
     if (!file) { perror("fopen"); return; }
 
@@ -51,6 +50,8 @@ void send_messages_from_file(const char* command, const char* target, const char
     message.msg_type = 1;
     message.client_pid = current_pid;
 
+
+    // อ่านแต่ละบรรทัดและส่งข้อความ
     while (fgets(line, sizeof(line), file)) {
         size_t len = strlen(line);
         if (len > 0 && line[len-1] == '\n') line[len-1] = '\0';
@@ -68,17 +69,15 @@ void send_messages_from_file(const char* command, const char* target, const char
             perror("msgsnd failed");
         else
             printf("[Sent]: %s\n", message.msg_text);
-
+        // รอเล็กน้อยระหว่างการส่งข้อความ
         usleep(100000);
     }
 
     fclose(file);
 }
 
-// =========================
-// MAIN
-// =========================
 
+// โปรแกรมหลัก
 int main() {
     int num_clients;
     char group_name[64];
@@ -117,7 +116,7 @@ int main() {
             else
                 printf("[Client %d] Joined group: %s\n", i+1, group_name);
 
-            // Say with file test.txt
+            // Say with file
             send_messages_from_file("say", group_name, "test/fixed.txt");
 
             sleep(1); // allow time for messages to be received
@@ -128,12 +127,10 @@ int main() {
         }
     }
 
-    // Parent waits for all children
+    // wait child processes
     for (int i = 0; i < num_clients; ++i) {
         wait(NULL);
     }
 
-    // Do NOT remove the message queue here. The server (router) owns the
-    // lifecycle of the message queue and will remove it when it shuts down.
     return 0;
 }
