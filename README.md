@@ -327,14 +327,6 @@ g++ client.cpp -o client -lpthread
   * ใช้งานได้เฉพาะบน Linux/Unix systems
   * ไม่รองรับการเข้ารหัสข้อความ (plaintext only)
 
-## การพัฒนาต่อ (Future Improvements)
-
-  - [ ] เพิ่มการเข้ารหัสข้อความ (Encryption)
-  - [ ] รองรับการส่งไฟล์ (File transfer)
-  - [ ] เพิ่ม GUI interface
-  - [ ] รองรับ Unicode และ Emoji
-  - [ ] เพิ่มระบบ authentication
-
 
 ---
 
@@ -542,15 +534,6 @@ ipcs -q              # ดู message queues
 ipcrm -q <msgid>     # ลบ queue
 ```
 
-## Future Enhancements
-
-- [ ] รองรับ Authentication
-- [ ] เพิ่ม Room password protection
-- [ ] Private room creation
-- [ ] Message history/logging
-- [ ] File sharing capability
-- [ ] Encryption สำหรับข้อความ
-- [ ] Web interface
 
 ## 📄 License
 
