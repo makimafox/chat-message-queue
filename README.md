@@ -97,6 +97,7 @@ Run exec
 
 and then cd app and compile
 
+---
 
 # Client Application - Message Queue System
 
@@ -334,3 +335,227 @@ g++ client.cpp -o client -lpthread
   - [ ] รองรับ Unicode และ Emoji
   - [ ] เพิ่มระบบ authentication
 
+
+---
+
+
+# Chat Server with Message Queue
+
+โปรเจกต์นี้เป็น **Multi-threaded Chat Server** ที่ใช้ System V Message Queue สำหรับการสื่อสารระหว่าง Server และ Client โดยรองรับการส่งข้อความแบบห้องแชท (Room) และข้อความส่วนตัว (Direct Message)
+
+##  ภาพรวมของระบบ
+
+Server นี้ทำหนาที่เป็นตัวกลาง (Router) ในการจัดการการสื่อสารระหว่าง Client หลายตัว โดยใช้:
+- **Message Queue** สำหรับการส่ง-รับข้อความระหว่าง Process
+- **Thread Pool** สำหรับจัดการ Task แบบ Concurrent
+- **Room-based Chat** สำหรับการแชทกลุ่ม
+- **Direct Messaging** สำหรับการส่งข้อความส่วนตัว
+
+##  สถาปัตยกรรมของระบบ
+
+### 1. **Message Buffer Structure**
+```cpp
+struct msg_buffer {
+    long msg_type;           // ID ของผู้รับข้อความ
+    int client_pid;          // ID ของผู้ส่ง
+    char msg_text[256];      // เนื้อหาข้อความ
+    long long send_timestamp; // เวลาที่ส่ง (microseconds)
+}
+```
+
+### 2. **คลาสหลักในระบบ**
+
+#### **ThreadPool**
+- จัดการ Worker Threads สำหรับประมวลผล Task แบบ Concurrent
+- ใช้ Queue และ Condition Variable สำหรับการกระจาย Task
+- รองรับการตั้งค่าจำนวน Thread ตามต้องการ
+
+#### **Client**
+- เก็บข้อมูล Client แต่ละคน (ID, Name)
+- มีฟังก์ชัน `boardcast()` สำหรับส่งข้อความส่วนตัว (DM)
+- รูปแบบข้อความ DM: `[Recieved Message from <SenderID> to <TargetID>]: <Text>`
+
+#### **Room**
+- จัดการห้องแชทและสมาชิกในห้อง
+- ฟังก์ชัน `join()` สำหรับเข้าร่วมห้อง
+- ฟังก์ชัน `leave()` สำหรับออกจากห้อง
+- ฟังก์ชัน `BoardCast()` สำหรับส่งข้อความไปยังสมาชิกทุกคนในห้อง
+- รูปแบบข้อความ Broadcast: `[Recieved Message from <SenderID> in room <RoomName>]: <Text>`
+
+#### **Router**
+- เป็นหัวใจหลักของ Server
+- จัดการ Client และ Room ทั้งหมด
+- ประมวลผลคำสั่งต่างๆ ที่ได้รับจาก Client
+- ส่งข้อความ Error/Info กลับไปยัง Client
+
+## Protocol การสื่อสาร
+
+### Message Type Convention
+- **Type 1**: ข้อความที่ส่งมายัง Server (Router)
+- **Type = Client ID**: ข้อความที่ Server ส่งกลับไปยัง Client นั้นๆ
+
+### รูปแบบคำสั่ง
+
+| คำสั่ง | รูปแบบ | คำอธิบาย |
+|--------|--------|----------|
+| `join` | `join <room_name>` | เข้าร่วมห้องแชท |
+| `leave` | `leave <room_name>` | ออกจากห้องแชท |
+| `say` | `say <room_name> <message>` | ส่งข้อความในห้อง |
+| `dm` | `dm <target_client_id> <message>` | ส่งข้อความส่วนตัว |
+| `online` | `online` | ดูรายชื่อ Client ที่ออนไลน์ |
+| `help` | `help` | แสดงคำสั่งทั้งหมด |
+
+## การติดตั้งและการใช้งาน
+
+### Requirements
+- Linux/Unix OS (ต้องรองรับ System V IPC)
+- g++ compiler with C++11 support
+- pthread library
+
+### Compilation
+```bash
+g++ -std=c++11 -pthread server.cpp -o server
+```
+
+### Running the Server
+```bash
+./server
+```
+
+เมื่อเริ่มโปรแกรม Server จะถามจำนวน Thread ที่ต้องการใช้ใน Thread Pool
+```
+Enter number of threads in pool: 4
+```
+
+## การทำงานของ Server
+
+### 1. **Initialization**
+- สร้าง Message Queue ด้วย `ftok()` และ `msgget()`
+- Key ที่ใช้: `ftok("progfile", 65)`
+- Permission: `0666`
+
+### 2. **Message Processing Flow**
+```
+Client → Message Queue (Type 1) → Router.handleMessage()
+                                        ↓
+                                   Parse Command
+                                        ↓
+                                   Execute Action
+                                        ↓
+                                   Send Response
+                                        ↓
+                                Message Queue (Type = Client ID) → Client
+```
+
+### 3. **Error Handling**
+- ตรวจสอบความถูกต้องของคำสั่งและพารามิเตอร์
+- ส่งข้อความ Error กลับไปยัง Client พร้อม Timestamp
+- Log ข้อผิดพลาดใน Server Console
+
+### 4. **Server Console Output**
+
+Server จะแสดงข้อมูลการทำงานแบบ Real-time:
+
+**Join/Leave Events:**
+```
+[Join][123][To][general]
+[Left][456][From][lobby]
+```
+
+**Broadcast Messages:**
+```
+[BROADCAST][From:123][To:general]: Hello everyone!
+```
+
+**Direct Messages:**
+```
+[Route DM][From:123][To:456]: Hi there!
+[DM][456]: [Recieved Message from 123 to 456]: Hi there!
+```
+
+**Info/Error Messages:**
+```
+[SendInfo][123]: Joined room general successfully
+[SendError][456]: Room not found: unknown_room
+```
+
+## Features
+
+### Implemented
+- [x] Multi-threaded message processing
+- [x] Room-based group chat
+- [x] Direct messaging between clients
+- [x] Dynamic room creation
+- [x] Client online status checking
+- [x] Comprehensive error handling
+- [x] Timestamp tracking (microseconds precision)
+- [x] Thread-safe operations
+- [x] Automatic client/room management
+
+### Key Features
+1. **Thread Pool**: ปรับแต่งจำนวน Thread ได้ตามความต้องการ
+2. **Non-blocking**: ใช้ Thread Pool ทำให้ Server ไม่ติดขัดเมื่อมี Task หนัก
+3. **Scalable**: รองรับ Client และ Room จำนวนมาก
+4. **Reliable**: มี Error handling ครอบคลุมทุกจุด
+5. **Real-time Logging**: แสดงสถานะการทำงานแบบ Real-time
+
+## Debugging
+
+### Server Console จะแสดง:
+- การเข้า-ออกห้อง
+- ข้อความที่ส่งในห้องและ DM
+- ข้อผิดพลาดต่างๆ
+- สถานะการทำงานของ ThreadPool
+
+### Common Issues:
+1. **ftok failed**: ตรวจสอบว่ามีไฟล์ "progfile" หรือไม่
+2. **msgget failed**: ตรวจสอบ Permission และ IPC limits
+3. **Invalid thread count**: ระบุจำนวน Thread ที่เป็นบวก
+
+## Implementation Notes
+
+### Thread Safety
+- ใช้ `mutex` ป้องกันการเข้าถึง shared data
+- `lock_guard` สำหรับ automatic unlocking
+- Thread-safe message queue operations
+
+### Memory Management
+- ใช้ `new`/`delete` สำหรับจัดการ Client และ Room
+- Cleanup ใน Router destructor
+- Error handling สำหรับ memory allocation failures
+
+### Performance Optimization
+- Thread Pool ลดค่าใช้จ่ายในการสร้าง Thread
+- Enqueue tasks แทนการประมวลผลแบบ Sequential
+- Non-blocking message sending
+
+## Message Queue Cleanup
+
+Server จะทำการลบ Message Queue เมื่อปิดโปรแกรม:
+```cpp
+msgctl(msgid, IPC_RMID, nullptr)
+```
+
+หากต้องการลบ Queue ด้วยตนเอง:
+```bash
+ipcs -q              # ดู message queues
+ipcrm -q <msgid>     # ลบ queue
+```
+
+## Future Enhancements
+
+- [ ] รองรับ Authentication
+- [ ] เพิ่ม Room password protection
+- [ ] Private room creation
+- [ ] Message history/logging
+- [ ] File sharing capability
+- [ ] Encryption สำหรับข้อความ
+- [ ] Web interface
+
+## 📄 License
+
+This project is open source and available for educational purposes.
+
+---
+
+**Note**: โปรเจกต์นี้ใช้สำหรับการเรียนรู้เกี่ยวกับ Inter-Process Communication และ Multi-threading ใน C++
